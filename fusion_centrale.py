@@ -437,7 +437,8 @@ def plot_first_frames_global(
 # ---------- Example usage ----------
 if __name__ == "__main__":
     # Path to nuScenes json folder (contains sample.json, sample_annotation.json, sample_data.json)
-    ann_root = "/dataset/nuscenes/v1.0-trainval" 
+    # Use os.path.join to avoid accidental escape-sequence interpretation (e.g. "\n", "\v").
+    ann_root = os.path.join("dataset", "nuscenes", "v1.0-trainval")
 
     # 1) Load GT
     print("#------------------------------------------")
