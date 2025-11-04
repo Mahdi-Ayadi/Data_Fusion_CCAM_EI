@@ -1,1 +1,31 @@
-\dataset
+# Bytecode / cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.pyc
+
+# Editor junk
+.DS_Store
+.vscode/
+.idea/
+.env
+.env.*
+.venv/
+venv/
+
+# Generated artifacts
+figures/
+models/
+
+# Dataset dumps
+/dataset/
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+
+# Logs
+*.log
