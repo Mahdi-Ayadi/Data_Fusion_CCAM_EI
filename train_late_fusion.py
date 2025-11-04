@@ -12,9 +12,8 @@ from torch.utils.data import DataLoader, Dataset, random_split
 
 from data_fusion.association import associate_weighted_mahalanobis
 from data_fusion.data_loading import load_nuscenes_gt, make_two_noise_levels
-from data_fusion.fusion import fuse_matches
 from data_fusion.late_fusion import LateFusionNet, compute_attention_features
-from data_fusion.math_utils import angle_diff, quat_to_yaw
+from data_fusion.math_utils import quat_to_yaw
 from data_fusion.models import Object3d
 
 
@@ -62,6 +61,12 @@ class LateFusionDataset(Dataset):
                 self.sensor2.append(object_to_vector(o2))
                 self.gt.append(object_to_vector(gt_obj))
 
+        if not self.features:
+            raise ValueError(
+                "LateFusionDataset received no matched pairs. "
+                "Check association thresholds or dataset fraction."
+            )
+
         self.features = np.stack(self.features)
         self.sensor1 = np.stack(self.sensor1)
         self.sensor2 = np.stack(self.sensor2)
@@ -91,7 +96,12 @@ def train_model(
     val_split: float = 0.2,
     device: torch.device = torch.device("cpu"),
 ) -> Tuple[LateFusionNet, dict]:
+    if len(dataset) < 2:
+        raise ValueError("Dataset must contain at least two samples to create train/val splits.")
+
     val_size = max(1, int(len(dataset) * val_split))
+    if val_size >= len(dataset):
+        val_size = len(dataset) - 1
     train_size = len(dataset) - val_size
     train_set, val_set = random_split(dataset, [train_size, val_size])
 
@@ -132,14 +142,15 @@ def train_model(
             loss.backward()
             optimizer.step()
             running_loss += loss.item() * feats.size(0)
+        progress.close()
 
         avg_train = running_loss / train_size
 
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
-        progress_val = tqdm(val_loader, desc=f"Epoch {epoch}/{epochs} [val]", leave=False)
-        for feats, s1, s2, gt in progress_val:
+            progress_val = tqdm(val_loader, desc=f"Epoch {epoch}/{epochs} [val]", leave=False)
+            for feats, s1, s2, gt in progress_val:
                 feats = feats.to(device)
                 s1 = s1.to(device)
                 s2 = s2.to(device)
@@ -157,6 +168,7 @@ def train_model(
                 yaw_loss = torch.mean(angle_diff_torch(fused_yaw, gt_yaw) ** 2)
                 loss = pos_loss + 0.5 * yaw_loss
                 val_loss += loss.item() * feats.size(0)
+            progress_val.close()
 
         avg_val = val_loss / val_size
         print(f"Epoch {epoch:02d} | train={avg_train:.6f} | val={avg_val:.6f}")
